@@ -273,6 +273,8 @@ void Gnss::nmeaCb(GpsUtcTime timestamp, const char* nmea, int length) {
     }
 
     android::hardware::hidl_string nmeaString;
+    if (length != strlen(nmea))
+        return;
     nmeaString.setToExternal(nmea, length);
     auto ret = sGnssCbIface->gnssNmeaCb(timestamp, nmeaString);
     if (!ret.isOk()) {
