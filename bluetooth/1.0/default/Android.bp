@@ -31,7 +31,6 @@ cc_library_shared {
         "libhidlbase",
         "liblog",
         "libutils",
-	"librkwifi-ctrl",
     ],
     static_libs: [
         "android.hardware.bluetooth-async",
