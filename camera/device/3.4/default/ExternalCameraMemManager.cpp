@@ -32,6 +32,32 @@ MemManagerBase::~MemManagerBase()
     mPreviewBufferInfo = NULL;
 }
 
+void MemManagerBase::setBufferStatus(enum buffer_type_enum buf_type,
+                                unsigned int buf_idx, int status) {
+    struct bufferinfo_s *buf_info;
+
+    switch(buf_type)
+    {
+        case PREVIEWBUFFER:
+            buf_info = mPreviewBufferInfo;
+        break;
+        default:
+            LOGE("Buffer type(0x%x) is invaildate",buf_type);
+            goto getVirAddr_end;
+    }
+
+    if (buf_idx >= buf_info->mNumBffers) {
+        LOGE("Buffer index(0x%x) is invalidate, Total buffer is 0x%x",
+            buf_idx,buf_info->mNumBffers);
+        goto getVirAddr_end;
+    }
+
+    (buf_info+buf_idx)->mStatus = status;
+
+getVirAddr_end:
+    return;
+}
+
 unsigned long MemManagerBase::getBufferAddr(enum buffer_type_enum buf_type,
                                 unsigned int buf_idx, buffer_addr_t addr_type)
 {
@@ -64,6 +90,38 @@ unsigned long MemManagerBase::getBufferAddr(enum buffer_type_enum buf_type,
 
 getVirAddr_end:
     return addr;
+}
+
+int MemManagerBase::getIdleBufferIndex(enum buffer_type_enum buf_type) {
+    unsigned long addr = 0x00;
+    struct bufferinfo_s *buf_info;
+    int index = -1;
+
+    switch(buf_type)
+    {
+        case PREVIEWBUFFER:
+            buf_info = mPreviewBufferInfo;
+        break;
+        default:
+            LOGE("Buffer type(0x%x) is invaildate",buf_type);
+            goto getVirAddr_end;
+    }
+
+    for (int i = 0; i < buf_info->mNumBffers; i++)
+        if ((buf_info+i)->mStatus == 0) {
+            index = i;
+            break;
+        }
+
+    if (index >= buf_info->mNumBffers) {
+        LOGE("Buffer index(0x%x) is invalidate, Total buffer is 0x%x",
+            index,buf_info->mNumBffers);
+        return -1;
+    }
+    
+getVirAddr_end:
+    return index;
+
 }
 
 int MemManagerBase::dump()
@@ -134,8 +192,12 @@ int GrallocDrmMemManager::createGrallocDrmBuffer(struct bufferinfo_s* grallocbuf
     }
 
     for(i = 0;i < numBufs; i++) {
+#ifndef RK_GRALLOC_4
+        *tmpalloc = mOps->alloc(mHandle,grallocbuf->mPerBuffersize);
+#else
         *tmpalloc = mOps->alloc(mHandle,grallocbuf->mPerBuffersize,
                             grallocbuf->width, grallocbuf->height);
+#endif
         if (*tmpalloc) {
             LOGD("alloc success");
         } else {
@@ -147,6 +209,7 @@ int GrallocDrmMemManager::createGrallocDrmBuffer(struct bufferinfo_s* grallocbuf
         grallocbuf->mVirBaseAddr = (unsigned long)((*tmpalloc)->vir_addr);
         grallocbuf->mPerBuffersize = PAGE_ALIGN(frame_size);
         grallocbuf->mShareFd     = (unsigned int)((*tmpalloc)->fd);
+        grallocbuf->mStatus      = 0;
         LOGD("grallocbuf->mVirBaseAddr=0x%lx, grallocbuf->mShareFd=0x%lx",
             grallocbuf->mVirBaseAddr, grallocbuf->mShareFd);
         *tmp_buf = *grallocbuf;
@@ -279,7 +342,11 @@ int GrallocDrmMemManager::flushCacheMem(buffer_type_enum buftype)
 
     for(unsigned int i = 0;(tmp_buf && (i < tmp_buf->mNumBffers));i++) {
         if(*tmpalloc && (*tmpalloc)->vir_addr) {
+#ifndef RK_GRALLOC_4
+            int ret = mOps->flush_cache(mHandle, *tmpalloc);
+#else
             int ret = mOps->flush_cache(mHandle, *tmpalloc, (*tmpalloc)->width, (*tmpalloc)->height);
+#endif
             if(ret != 0)
                 LOGD("flush cache failed !");
         }

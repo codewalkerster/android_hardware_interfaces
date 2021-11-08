@@ -14,6 +14,27 @@
 // limitations under the License.
 //
 
+bootstrap_go_package {
+    name: "soong-libcameradevice",
+    pkgPath: "android/soong/libcameradevice",
+    deps: [
+        "blueprint",
+        "blueprint-pathtools",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+    ],
+    srcs: [
+          "Android.go",
+    ],
+    pluginFor: ["soong_build"],
+}
+
+cc_libcameradevice {
+   name: "cc_libcameradevice_defaults"
+}
+
 cc_library_headers {
     name: "camera.device@3.4-impl_headers",
     vendor: true,
@@ -66,16 +87,21 @@ cc_library_shared {
 
 cc_library_shared {
     name: "camera.device@3.4-external-impl",
-    defaults: ["hidl_defaults"],
+    defaults: [
+        "hidl_defaults",
+        "cc_libcameradevice_defaults"
+    ],
     proprietary: true,
     vendor: true,
     srcs: [
         "ExternalCameraDevice.cpp",
         "ExternalCameraDeviceSession.cpp",
+        "ExternalFakeCameraDevice.cpp",
+        "ExternalFakeCameraDeviceSession.cpp",
         "ExternalCameraUtils.cpp",
         "RgaCropScale.cpp",
         "ExternalCameraMemManager.cpp",
-        "ExternalCameraGralloc4.cpp"
+        "rkvpu_dec_api.cpp"
     ],
     include_dirs: [
         "hardware/rockchip/libhwjpeg/inc",
@@ -113,6 +139,7 @@ cc_library_shared {
         "libui",
         "librga",
         "libhwjpeg",
+        "libvpu",
         "libbase",
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
@@ -144,9 +171,10 @@ cc_library_shared {
         "-Wno-error",
         "-Wno-unused",
         "-DRK_HW_JPEG_DECODER",
-        "-DRK_GRALLOC_4",
     ],
-    local_include_dirs: ["include/ext_device_v3_4_impl"],
+    local_include_dirs: [
+        "include/ext_device_v3_4_impl",
+        "include/vpu_inc"],
     export_shared_lib_headers: [
         "libfmq",
         "libhwjpeg",
