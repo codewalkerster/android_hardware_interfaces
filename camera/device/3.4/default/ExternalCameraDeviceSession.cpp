@@ -2433,6 +2433,131 @@ bool ExternalCameraDeviceSession::OutputThread::threadLoop() {
                         halBuf.width, halBuf.height, 100, false, true,
                         (halBuf.format == PixelFormat::YCRCB_420_SP), is16Align,
                         true);
+#ifdef ODROID
+                } else if (req->frameIn->mFourcc == V4L2_PIX_FMT_MJPEG) {
+
+                    if (req->mShareFd <= 0) {
+                        lk.unlock();
+                        Status st = parent->processCaptureRequestError(req);
+                        if (st != Status::OK) {
+                            return onDeviceError("%s: failed to process capture request error!", __FUNCTION__);
+                        }
+                        signalRequestDone();
+                        return true;
+                    }
+
+#ifndef RK_HW_JPEG_DECODER
+                     int res = libyuv::MJPGToI420(
+                         req->inData, req->inDataSize, static_cast<uint8_t*>(mYu12FrameLayout.y), mYu12FrameLayout.yStride,
+                         static_cast<uint8_t*>(mYu12FrameLayout.cb), mYu12FrameLayout.cStride,
+                         static_cast<uint8_t*>(mYu12FrameLayout.cr), mYu12FrameLayout.cStride,
+                         mYu12Frame->mWidth, mYu12Frame->mHeight, mYu12Frame->mWidth, mYu12Frame->mHeight);
+                     ALOGV("%s MJPGToI420 end, I420ToNV12 start", __FUNCTION__);
+                     ATRACE_BEGIN("I420ToNV12");
+                     YCbCrLayout output;
+                     output.y = (uint8_t*)req->mVirAddr;
+                     output.yStride = mYu12Frame->mWidth;
+                     output.cb = (uint8_t*)(req->mVirAddr) + tempFrameWidth * tempFrameHeight;
+                     output.cStride = mYu12Frame->mWidth;
+
+                     res = libyuv::I420ToNV12(
+                             static_cast<uint8_t*>(mYu12FrameLayout.y),
+                             mYu12FrameLayout.yStride,
+                             static_cast<uint8_t*>(mYu12FrameLayout.cb),
+                             mYu12FrameLayout.cStride,
+                             static_cast<uint8_t*>(mYu12FrameLayout.cr),
+                             mYu12FrameLayout.cStride,
+                             static_cast<uint8_t*>(output.y),
+                             output.yStride,
+                             static_cast<uint8_t*>(output.cb),
+                             output.cStride,
+                             mYu12Frame->mWidth, mYu12Frame->mHeight);
+                    ATRACE_END();
+#ifdef DUMP_YUV
+                    {
+                        static int frameCount = req->frameNumber;
+                        if(++frameCount > 5 && frameCount<10){
+                            FILE* fp =NULL;
+                            char filename[128];
+                            filename[0] = 0x00;
+                            sprintf(filename, "/data/camera/camera_dump_%dx%d_%d.yuv",
+                                    tempFrameWidth, tempFrameHeight, frameCount);
+                            fp = fopen(filename, "wb+");
+                            if (fp != NULL) {
+                                fwrite((char*)req->mVirAddr, 1, tempFrameWidth*tempFrameHeight*1.5, fp);
+                                fclose(fp);
+                                ALOGI("Write success YUV data to %s",filename);
+                            } else {
+                                ALOGE("Create %s failed(%d, %s)",filename,fp, strerror(errno));
+                            }
+                        }
+                    }
+#endif
+#endif
+
+                    void *mVirAddr = NULL;
+                    int ret;
+#ifndef RK_GRALLOC_4
+                    LOGE("Not supported on the ODROID");
+                    return -1;
+#else
+                    const native_handle_t* tmp_hand = (const native_handle_t*)(*(halBuf.bufPtr));
+                    ret = ExCamGralloc4::lock(
+                            tmp_hand,
+                            halBuf.usage,
+                            0,
+                            0,
+                            halBuf.width,
+                            halBuf.height,
+                            (void**)&mVirAddr);
+                    if (ret) {
+                        LOGE("lock buffer error : %s", strerror(errno));
+                    }
+#endif
+                    ALOGV("%s(%d): halBuf lock buffer address(%p)",
+                            __FUNCTION__, __LINE__, mVirAddr);
+                    ALOGV("%s(%d) halbuf_wxh(%dx%d) frameNumber(%d)",
+                            __FUNCTION__, __LINE__,
+                        halBuf.width, halBuf.height, req->frameNumber);
+                    unsigned long vir_addr = reinterpret_cast<unsigned long>(req->mVirAddr);
+                    camera2::RgaCropScale::rga_nv12_scale_crop(
+                        tempFrameWidth, tempFrameHeight, vir_addr, (unsigned long)mVirAddr,
+                        halBuf.width, halBuf.height, 100, false, true,
+                        (halBuf.format == PixelFormat::YCRCB_420_SP), is16Align,
+                        true);
+                    ExCamGralloc4::unlock(tmp_hand);
+#ifdef DUMP_YUV
+                    {
+                        ExCamGralloc4::unlock(tmp_hand);
+                        int frameCount = req->frameNumber;
+                        if( frameCount > 4 && frameCount < 10){
+                            FILE* fp =NULL;
+                            char filename[128];
+                            filename[0] = 0x00;
+                            sprintf(filename, "/data/camera/camera_dump_%dx%d_%d.yuv",
+                                    tempFrameWidth, tempFrameHeight, frameCount);
+                            fp = fopen(filename, "wb+");
+                            if (fp != NULL) {
+                                fwrite((char*)req->mVirAddr, 1, tempFrameWidth*tempFrameHeight*1.5, fp);
+                                fclose(fp);
+                                ALOGI("Write success YUV data to %s",filename);
+                            } else {
+                                ALOGE("Create %s failed(%d, %s)",filename,fp, strerror(errno));
+                            }
+                            sprintf(filename, "/data/camera/camera_dump_halbuf_%dx%d_%d.yuv",
+                                    halBuf.width, halBuf.height, frameCount);
+                            fp = fopen(filename, "wb+");
+                            if (fp != NULL) {
+                                fwrite((char*)mVirAddr, 1, halBuf.width*halBuf.height*1.5, fp);
+                                fclose(fp);
+                                ALOGI("Write success YUV data to %s",filename);
+                            } else {
+                                ALOGE("Create %s failed(%d, %s)",filename,fp, strerror(errno));
+                            }
+                        }
+                    }
+#endif
+#endif
                 } else {
 
                     if (req->mShareFd <= 0) {

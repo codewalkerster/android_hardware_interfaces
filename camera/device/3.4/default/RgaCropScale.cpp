@@ -133,7 +133,16 @@ int RgaCropScale::rga_nv12_scale_crop(
     }
     src.mmuFlag = ((2 & 0x3) << 4) | 1 | (1 << 8) | (1 << 10);
     memset(&dst, 0, sizeof(rga_info_t));
+#ifdef ODROID
+    if (isYuyvFormat) {
+        dst.fd = -1;
+        dst.virAddr = (void*)dst_fd;
+    } else {
+        dst.fd = dst_fd;
+    }
+#else
     dst.fd = dst_fd;
+#endif
     dst.mmuFlag = ((2 & 0x3) << 4) | 1 | (1 << 8) | (1 << 10);
 
     if((dst_width > RGA_VIRTUAL_W) || (dst_height > RGA_VIRTUAL_H)){
