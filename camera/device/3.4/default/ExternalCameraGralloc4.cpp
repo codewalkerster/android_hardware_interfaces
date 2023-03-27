@@ -266,13 +266,13 @@ status_t createDescriptor(void* bufferDescriptorInfo,
 }
 
 int lock(buffer_handle_t bufferHandle,
-                                  uint32_t flags,
+                                  uint64_t flags,
                                   uint32_t left,
                                   uint32_t top,
                                   uint32_t width,
                                   uint32_t height,
                                   void** out_addr) {
-    ALOGD("lock buffer:%p   rect(%d, %d, %d, %d) flag: 0x%08x", bufferHandle, left, top, width, height, flags);
+    ALOGD("lock buffer:%p   rect(%d, %d, %d, %d) flag: 0x%08llu", bufferHandle, left, top, width, height, flags);
 
     auto &mapper = get_mapperservice();
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
@@ -430,7 +430,7 @@ int get_share_fd(buffer_handle_t buffer, int* share_fd) {
 static int allocate_gralloc_buffer(size_t width,
                                                    size_t height,
                                                    uint32_t format,
-                                                   uint32_t usage,
+                                                   uint64_t usage,
                                                    buffer_handle_t* out_buffer,
                                                    uint32_t* out_stride) {
     LOGD("AllocateGrallocBuffer %d, %d, %d, %d", width, height, format, usage);
@@ -526,6 +526,7 @@ static cam_mem_handle_t*  cam_mem_gralloc_ops_init(
     if (mem_flag & CAM_MEM_FLAG_SW_READ)
         handle->flag |= GRALLOC_USAGE_SW_READ_OFTEN;
     handle->flag |= RK_GRALLOC_USAGE_SPECIFY_STRIDE;
+    handle->flag |= RK_GRALLOC_USAGE_RGA_ACCESS;
     return handle;
 init_error:
     if (!handle)
@@ -539,7 +540,7 @@ static cam_mem_info_t* cam_mem_gralloc_ops_alloc(
         uint32_t width, uint32_t height)
 {
     int ret;
-    unsigned int grallocFlags = 0;
+    uint64_t  grallocFlags = 0;
     unsigned int halPixFmt;
     void* mem_addr = NULL;
     cam_mem_info_t* mem = NULL;

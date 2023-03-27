@@ -40,7 +40,7 @@
 #define LOGD(msg,...)       ALOGD("@%s(%d): " msg ,__FUNCTION__,__LINE__,##__VA_ARGS__)
 #define LOGE(msg,...)       ALOGE("@%s(%d): " msg ,__FUNCTION__,__LINE__,##__VA_ARGS__)
 #define PAGE_ALIGN(x)   (((x) + 0xFFF) & (~0xFFF)) // Set as multiple of 4K
-
+#define RK_GRALLOC_USAGE_RGA_ACCESS 1ULL << 56
 #ifdef __cplusplus
 extern "C"
 {
@@ -68,7 +68,7 @@ typedef struct cam_mem_handle_s {
     int iommu_enabled;
     int phy_continuos;
     int camsys_fd;
-    unsigned int flag;
+    uint64_t flag;
     void* priv;
 }cam_mem_handle_t;
 
@@ -120,7 +120,7 @@ namespace ExCamGralloc4 {
     status_t createDescriptor(void* bufferDescriptorInfo,
                                 void* outBufferDescriptor);
     int lock(buffer_handle_t bufferHandle,
-							  uint32_t flags,
+							  uint64_t flags,
 							  uint32_t left,
 							  uint32_t top,
 							  uint32_t width,
