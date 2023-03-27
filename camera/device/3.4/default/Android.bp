@@ -171,6 +171,7 @@ cc_library_shared {
         "-Wno-error",
         "-Wno-unused",
         "-DRK_HW_JPEG_DECODER",
+        "-DODROID",
     ],
     local_include_dirs: [
         "include/ext_device_v3_4_impl",
